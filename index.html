@@ -1,32 +1,286 @@
-function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Inventory");
-  var data = sheet.getDataRange().getValues();
-  var rows = data.slice(1); // Exclude headers
-  
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", data: rows }))
-    .setMimeType(ContentService.MimeType.JSON);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Car Inventory Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--acc:#0284c7;--acc2:#0d9488;--chip:#f1f5f9;--hdr:#0f172a;--hdrink:#ffffff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#080d1a;--card:#0f172a;--ink:#f8fafc;--muted:#94a3b8;--line:#1e293b;--acc:#38bdf8;--acc2:#2dd4bf;--chip:#1e293b;--hdr:#030712}}
+:root[data-theme="dark"]{--bg:#080d1a;--card:#0f172a;--ink:#f8fafc;--muted:#94a3b8;--line:#1e293b;--acc:#38bdf8;--acc2:#2dd4bf;--chip:#1e293b;--hdr:#030712}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:var(--hdr);color:var(--hdrink);padding:16px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;letter-spacing:-0.2px;font-weight:700}header small{opacity:.7;display:block;font-weight:400;margin-top:2px;font-size:12px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+button,.btn{font:inherit;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--acc);color:#fff;font-weight:600;transition:all 0.15s ease}
+button:hover,.btn:hover{opacity:0.92}
+.ghost{background:transparent!important;border:1px solid rgba(255,255,255,.25)!important;color:inherit}
+main{max-width:1440px;margin:0 auto;padding:20px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+.panel h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--chip);color:var(--ink);padding:5px 12px;border-radius:999px;font-weight:500;font-size:12.5px;transition:all 0.15s ease}
+.chip.on{background:var(--acc);color:#fff}.chip.q{background:transparent;border:1px solid var(--line)}
+.slicers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.sl{color:var(--muted);font-size:12px;margin-bottom:6px;font-weight:500}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:28px;font-weight:800;line-height:1.15;margin-top:4px;overflow-wrap:anywhere;letter-spacing:-0.5px}.kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
+.cust{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.cc2{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--acc);border-radius:14px;padding:14px;text-align:left;color:var(--ink);font-weight:400;cursor:pointer;transition:all 0.15s ease;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+.cc2:hover{transform:translateY(-1px)}
+.cc2.on{outline:2px solid var(--acc);border-top-color:transparent}
+.cc2 .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.cc2 .n{font-weight:700;font-size:15px}.cc2 .t{font-size:26px;font-weight:800;letter-spacing:-0.5px}.cc2 .p{font-size:11px;color:var(--muted);margin-top:2px}
+.m{margin-top:8px;font-size:12.5px}.m div{display:flex;justify-content:space-between}.bar{height:5px;background:var(--chip);border-radius:3px;margin-top:3px}.bar i{display:block;height:100%;background:var(--acc2);border-radius:3px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.wide{grid-column:1/-1}
+.cv{height:300px;position:relative}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-size:11px;text-transform:uppercase;font-weight:600;letter-spacing:.5px}td.r,th.r{text-align:right}
+#msg{display:none;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:12px 14px;border-radius:12px;margin-bottom:16px;font-weight:500}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:12px 0 24px;font-weight:500}
+.modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(15,23,42,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-content{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;width:100%;max-width:920px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);overflow:hidden}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.modal-header h2{margin:0;font-size:16px;font-weight:700}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--bg)}
+.form-row{display:grid;grid-template-columns:1fr 1fr 1fr 100px auto;gap:10px;margin-bottom:10px;align-items:center}
+.form-row input{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);outline:0}
+.form-row input:focus{border-color:var(--acc)}
+.danger{background:#ef4444!important}
+.secondary{background:var(--muted)!important}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>CAR INVENTORY DASHBOARD<small id="src">Connecting to Google Sheets...</small></h1></div>
+  <div class="btns">
+    <button class="ghost" id="btn-sync">☁️ Sync Cloud</button>
+    <button class="ghost" id="btn-edit">✏️ Edit Inventory</button>
+    <label class="btn ghost">⬆ Upload Excel / CSV<input id="file" type="file" accept=".xlsx,.xls,.csv" hidden></label>
+    <button class="ghost" id="reset">Sample data</button>
+    <button class="ghost" id="dl">⬇ Download PDF report</button>
+    <button class="ghost" id="theme">◐ Theme</button>
+  </div>
+</header>
+
+<main>
+<div id="msg"></div>
+<section class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Slicers</h3><button class="chip q" id="clear">Clear all</button></div>
+<div class="slicers" style="margin-top:8px"><div><div class="sl">Yard</div><div class="chips" id="s_yard"></div></div><div><div class="sl">Customer</div><div class="chips" id="s_cust"></div></div><div><div class="sl">Model</div><div class="chips" id="s_model"></div></div></div></section>
+<section class="kpis" id="kpis"></section>
+<section class="panel"><h3>Customer totals &amp; models (tap a card to filter)</h3><div class="cust" id="cust"></div></section>
+<section class="charts">
+<div class="panel"><h3>Total cars by customer</h3><div class="cv"><canvas id="c1"></canvas></div></div>
+<div class="panel"><h3>Model share</h3><div class="cv"><canvas id="c2"></canvas></div></div>
+<div class="panel"><h3>Cars by yard</h3><div class="cv"><canvas id="c3"></canvas></div></div>
+<div class="panel"><h3>Top models</h3><div class="cv"><canvas id="c4"></canvas></div></div>
+<div class="panel wide"><h3>Customer × model (stacked)</h3><div class="cv"><canvas id="c5"></canvas></div></div>
+</section>
+<section class="panel"><h3>Detail</h3><div style="overflow:auto;max-height:420px"><table><thead><tr><th>Yard name</th><th>Customer</th><th>Model</th><th class="r">Cars (Qty)</th></tr></thead><tbody id="tb"></tbody></table></div></section>
+<footer id="foot"></footer>
+</main>
+
+<!-- EDIT INVENTORY MODAL -->
+<div class="modal" id="editModal">
+<div class="modal-content">
+<div class="modal-header">
+<h2>Manage & Edit Car Inventory</h2>
+<button class="ghost" id="modal-close" style="color:var(--ink);border-color:var(--line)!important">✕</button>
+</div>
+<div class="modal-body">
+<p style="margin-top:0;color:var(--muted);font-size:13px">Add, edit, or remove inventory entries below. Click <b>Save &amp; Sync to Cloud</b> to update your Google Sheet and share changes live across all teammates.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 100px auto;gap:10px;font-weight:600;font-size:12px;color:var(--muted);margin-bottom:8px;padding:0 4px">
+<div>Yard name</div><div>Customer</div><div>Model</div><div>Cars (Qty)</div><div></div>
+</div>
+<div id="editorRows"></div>
+<button id="addRow" style="margin-top:10px">+ Add Row</button>
+</div>
+<div class="modal-footer">
+<button class="secondary" id="modal-cancel">Cancel</button>
+<button id="modal-save">💾 Save &amp; Sync to Cloud</button>
+</div>
+</div>
+</div>
+
+<script>
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfeZiPz8-8E4lE0qIMNV5j-S_6KFLgKqzm56GUnRzaiTnAkd8Zj4y_Wksu1i3kyLIu/exec";
+
+const SAMPLE=[["ATC NEW YARD","Jiyue Motors","Q07",38],["ATC NEW YARD","Jiyue Motors","UNI-Z",16],["ATC NEW YARD","Jiyue Motors","X5 PLUS",1],["ATC NEW YARD","Bobideer","BYD",31],["ATC NEW YARD","Bobideer","BYD LEP8",3],["ATC NEW YARD","Bobideer","X PENG",1],["ATC NEW YARD","Bobideer","X5 PLUS",100],["ATC NEW YARD","Origin","ROX01",15],["ATC NEW YARD","Sinolink","X5 PLUS",87],["ATC YARD","Sinolink","ZEEKR",4]];
+const $=s=>document.querySelector(s);const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const tc=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+
+let ALL=[],sel={yard:new Set,cust:new Set,model:new Set},charts={};
+function msg(t){const m=$('#msg');m.style.display=t?'block':'none';m.textContent=t}
+
+function load(d,name){
+  if(!d||!d.length){msg('No usable rows found.');return;}
+  msg('');
+  ALL=d.map(r=>({yard:String(r[0]||'Main'),cust:String(r[1]||'Unknown'),model:String(r[2]||'Unknown'),n:parseFloat(r[3])||1}));
+  $('#src').textContent='Source: '+name+' · '+ALL.length+' lines';
+  build();
+  render();
 }
 
-function doPost(e) {
-  try {
-    var contents = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Inventory");
-    
-    // Clear existing data (keep headers)
-    var lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      sheet.getRange(2, 1, lastRow - 1, 4).clearContent();
+function agg(rs,k){const c={};rs.forEach(r=>c[r[k]]=(c[r[k]]||0)+r.n);return Object.entries(c).sort((a,b)=>b[1]-a[1])}
+function build(){[['yard','#s_yard'],['cust','#s_cust'],['model','#s_model']].forEach(([k,id])=>{const el=$(id);el.innerHTML='';agg(ALL,k).forEach(([v,n])=>{const b=document.createElement('button');b.className='chip';b.textContent=v+' · '+n;b.dataset.k=k;b.dataset.v=v;b.onclick=()=>{sel[k].has(v)?sel[k].delete(v):sel[k].add(v);render()};el.appendChild(b)})})}
+const rows=()=>ALL.filter(r=>['yard','cust','model'].every(k=>!sel[k].size||sel[k].has(r[k])));
+function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),cfg)}
+
+function render(){
+  const rs=rows(),tot=rs.reduce((s,r)=>s+r.n,0);
+  document.querySelectorAll('.slicers .chip').forEach(b=>b.classList.toggle('on',sel[b.dataset.k].has(b.dataset.v)));
+  const cu=agg(rs,'cust'),mo=agg(rs,'model'),yd=agg(rs,'yard');
+  const kp=[['Total cars',tot,yd.length+' yard(s)','--acc'],['Customers',cu.length,'with cars on site','--acc2'],['Models',mo.length,'distinct models','--acc'],['Top customer',cu[0]?cu[0][0]:'–',cu[0]?cu[0][1]+' cars · '+(cu[0][1]/tot*100).toFixed(0)+'%':'','--acc2'],['Top model',mo[0]?mo[0][0]:'–',mo[0]?mo[0][1]+' cars':'','--acc']];
+  $('#kpis').innerHTML=kp.map(k=>`<div class="kpi" style="border-left-color:var(${k[3]})"><div class="l">${k[0]}</div><div class="v">${esc(k[1])}</div><div class="s">${esc(k[2])}</div></div>`).join('');
+  $('#cust').innerHTML=cu.map(([c,t])=>{const ms=agg(rs.filter(r=>r.cust===c),'model');return `<button class="cc2${sel.cust.has(c)?' on':''}" data-c="${esc(c)}"><div class="top"><span class="n">${esc(c)}</span><span class="t">${t}</span></div><div class="p">${(t/tot*100).toFixed(1)}% of cars · ${ms.length} model(s)</div><div class="m">${ms.map(([m,n])=>`<div><span>${esc(m)}</span><b>${n}</b></div><div class="bar"><i style="width:${n/t*100}%"></i></div>`).join('')}</div></button>`}).join('');
+  document.querySelectorAll('.cc2').forEach(b=>b.onclick=()=>{const c=b.dataset.c;sel.cust.has(c)?sel.cust.delete(c):sel.cust.add(c);render()});
+  const sorted=[...rs].sort((a,b)=>a.yard.localeCompare(b.yard)||a.cust.localeCompare(b.cust)||b.n-a.n);
+  $('#tb').innerHTML=sorted.map(r=>`<tr><td>${esc(r.yard)}</td><td>${esc(r.cust)}</td><td>${esc(r.model)}</td><td class="r">${r.n}</td></tr>`).join('')+`<tr><td colspan="3"><b>Total</b></td><td class="r"><b>${tot}</b></td></tr>`;
+  if(!window.Chart)return;
+  const mu=css('--muted'),ln=css('--line');Chart.defaults.color=mu;Chart.defaults.font.size=11;
+  const pal=[css('--acc'),css('--acc2'),'#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16','#64748b','#f97316'];
+  const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}};
+  const hb=(id,g,c)=>mk(id,{type:'bar',data:{labels:g.map(x=>x[0]),datasets:[{data:g.map(x=>x[1]),backgroundColor:c,borderRadius:4}]},options:{...base,indexAxis:'y',scales:{x:{grid:{color:ln},beginAtZero:true},y:{grid:{display:false}}}}});
+  hb('#c1',cu,pal[0]);hb('#c4',mo.slice(0,8),pal[1]);
+  const dn=(id,g)=>mk(id,{type:'doughnut',data:{labels:g.map(x=>x[0]),datasets:[{data:g.map(x=>x[1]),backgroundColor:pal,borderColor:css('--card')}]},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}});
+  dn('#c2',mo);dn('#c3',yd);
+  const ml=mo.map(x=>x[0]);mk('#c5',{type:'bar',data:{labels:cu.map(x=>x[0]),datasets:ml.map((m,i)=>({label:m,backgroundColor:pal[i%pal.length],data:cu.map(([c])=>rs.filter(r=>r.cust===c&&r.model===m).reduce((s,r)=>s+r.n,0))}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:ln}}}}});
+  $('#foot').textContent='Showing '+tot+' of '+ALL.reduce((s,r)=>s+r.n,0)+' cars';
+}
+
+async function fetchCloudInventory(){
+  if(!GOOGLE_SCRIPT_URL){
+    load(SAMPLE, "Sample Data (Offline)");
+    return;
+  }
+  try{
+    const res = await fetch(GOOGLE_SCRIPT_URL);
+    const json = await res.json();
+    if(json.status === "success" && json.data){
+      load(json.data, "Google Sheets (Live Cloud)");
+    } else {
+      load(SAMPLE, "Sample Data (Spreadsheet Empty)");
     }
-    
-    // Write new data rows
-    if (contents.data && contents.data.length > 0) {
-      sheet.getRange(2, 1, contents.data.length, 4).setValues(contents.data);
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+  }catch(err){
+    console.error("Cloud fetch error:", err);
+    msg("Could not connect to Google sheet. Using offline dataset.");
+    load(SAMPLE, "Sample Data (Offline)");
   }
 }
+
+async function saveCloudInventory(newDataRows){
+  if(!GOOGLE_SCRIPT_URL) return;
+  try{
+    msg("Syncing changes to Google Sheets cloud...");
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ data: newDataRows })
+    });
+    msg("Successfully saved and synced to Google Sheets!");
+    setTimeout(()=>msg(''), 3000);
+    fetchCloudInventory();
+  }catch(err){
+    console.error("Cloud save error:", err);
+    msg("Failed to save changes to Google Sheets.");
+  }
+}
+
+function openEditor(){
+ const container=$('#editorRows');container.innerHTML='';
+ ALL.forEach((r,i)=>{
+  const row=document.createElement('div');row.className='form-row';
+  row.innerHTML=`<input type="text" class="e-yard" value="${esc(r.yard)}" placeholder="Yard name"><input type="text" class="e-cust" value="${esc(r.cust)}" placeholder="Customer"><input type="text" class="e-model" value="${esc(r.model)}" placeholder="Model"><input type="number" class="e-n" value="${r.n}" min="0"><button type="button" class="danger e-del">Delete</button>`;
+  row.querySelector('.e-del').onclick=()=>row.remove();
+  container.appendChild(row);
+ });
+ $('#editModal').classList.add('open');
+}
+function closeEditor(){$('#editModal').classList.remove('open')}
+$('#btn-edit').onclick=openEditor;
+$('#modal-close').onclick=closeEditor;
+$('#modal-cancel').onclick=closeEditor;
+$('#btn-sync').onclick=fetchCloudInventory;
+
+$('#addRow').onclick=()=>{
+ const container=$('#editorRows');
+ const row=document.createElement('div');row.className='form-row';
+ row.innerHTML=`<input type="text" class="e-yard" value="ATC NEW YARD" placeholder="Yard name"><input type="text" class="e-cust" value="" placeholder="Customer"><input type="text" class="e-model" value="" placeholder="Model"><input type="number" class="e-n" value="1" min="0"><button type="button" class="danger e-del">Delete</button>`;
+ row.querySelector('.e-del').onclick=()=>row.remove();
+ container.appendChild(row);
+};
+
+$('#modal-save').onclick=()=>{
+ const rowsDivs=$('#editorRows').querySelectorAll('.form-row');
+ const newCloudData=[];
+ rowsDivs.forEach(rd=>{
+  const yard=rd.querySelector('.e-yard').value.trim()||'Main';
+  const cust=rd.querySelector('.e-cust').value.trim()||'Unknown';
+  const model=rd.querySelector('.e-model').value.trim()||'Unknown';
+  const n=parseFloat(rd.querySelector('.e-n').value)||0;
+  if(n>0)newCloudData.push([yard.toUpperCase(), tc(cust), model.toUpperCase(), n]);
+ });
+ closeEditor();
+ saveCloudInventory(newCloudData);
+};
+
+function downloadPdfReport(){
+ try{
+  if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF library is loading. Please try again.');return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=doc.internal.pageSize.getWidth();
+  const rs=rows();
+  const g=rs.reduce((s,r)=>s+r.n,0);
+  const cu=agg(rs,'cust');
+  const yd=agg(rs,'yard');
+  const mo=agg(rs,'model');
+
+  const NAVY=[15,23,42], ACC=[2,132,199], LT=[248,250,252], LN=[226,232,240], MUTED=[100,116,139];
+
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,80,'F');
+  doc.setFillColor(...ACC);doc.rect(0,76,W,4,'F');
+
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(22);
+  doc.text('CAR INVENTORY REPORT',40,38);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(203,213,225);
+  doc.text('Executive Inventory Summary & Storage Location Analysis  |  Generated: '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}),40,58);
+
+  const kp=[['TOTAL CARS',g],['CUSTOMERS',cu.length],['MODELS',mo.length],['YARDS',yd.length]];
+  const bw=(W-80-30)/4;
+  kp.forEach((k,i)=>{
+   const x=40+i*(bw+10);
+   doc.setDrawColor(...LN);doc.setFillColor(...LT);doc.roundedRect(x,96,bw,52,5,5,'FD');
+   doc.setTextColor(...MUTED);doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.text(k[0],x+12,112);
+   doc.setTextColor(...NAVY);doc.setFontSize(20);doc.text(String(k[1]),x+12,138);
+  });
+
+  const R=v=>({content:String(v),styles:{halign:'right'}});
+  const TT=(t,v,span,fill,col)=>[
+   {content:t,colSpan:span,styles:{fontStyle:'bold',fillColor:fill,textColor:col}},
+   {content:String(v),styles:{halign:'right',fontStyle:'bold',fillColor:fill,textColor:col}}
+  ];
+
+  doc.setTextColor(...NAVY);doc.setFont('helvetica','bold');doc.setFontSize(12);
+  doc.text('1. Inventory Breakdown by Customer & Model',40,172);
+
+  const b1=[];
+  cu.forEach(([c,t])=>{
+   const cRows=rs.filter(r=>r.cust===c);
+   cRows.forEach((r,i)=>{ b1.push([r.yard, i?'':c, r.model, R(r.n)]); });
+   b1.push([{content:'',styles:{fillColor:LT}}, ...TT(c+' Subtotal',t,2,LT,NAVY)]);
+  });
+  b1.push(TT('GRAND TOTAL',g,3,NAVY,255));
+
+  const tableOpt={
+   theme:'grid',
+   headStyles:{fillColor:ACC,textColor:255,fontStyle:'bold',fontSize:9.5,cellPadding:6},
+   styles:{fontSize:8.5,cellPadding:5.5,lin
