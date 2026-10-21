@@ -88,7 +88,6 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:12px 0 24px;f
 <footer id="foot"></footer>
 </main>
 
-<!-- EDIT INVENTORY MODAL -->
 <div class="modal" id="editModal">
 <div class="modal-content">
 <div class="modal-header">
@@ -116,7 +115,7 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzfeZiPz8-8E4
 const SAMPLE=[["ATC NEW YARD","Jiyue Motors","Q07",38],["ATC NEW YARD","Jiyue Motors","UNI-Z",16],["ATC NEW YARD","Jiyue Motors","X5 PLUS",1],["ATC NEW YARD","Bobideer","BYD",31],["ATC NEW YARD","Bobideer","BYD LEP8",3],["ATC NEW YARD","Bobideer","X PENG",1],["ATC NEW YARD","Bobideer","X5 PLUS",100],["ATC NEW YARD","Origin","ROX01",15],["ATC NEW YARD","Sinolink","X5 PLUS",87],["ATC YARD","Sinolink","ZEEKR",4]];
 const $=s=>document.querySelector(s);const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const tc=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+const tc=s=>s?String(s).trim():'';
 
 let ALL=[],sel={yard:new Set,cust:new Set,model:new Set},charts={};
 function msg(t){const m=$('#msg');m.style.display=t?'block':'none';m.textContent=t}
@@ -172,7 +171,6 @@ async function fetchCloudInventory(){
     }
   }catch(err){
     console.error("Cloud fetch error:", err);
-    msg("Could not connect to Google sheet. Using offline dataset.");
     load(SAMPLE, "Sample Data (Offline)");
   }
 }
@@ -196,7 +194,7 @@ async function saveCloudInventory(newDataRows){
 
 function openEditor(){
  const container=$('#editorRows');container.innerHTML='';
- ALL.forEach((r,i)=>{
+ ALL.forEach((r)=>{
   const row=document.createElement('div');row.className='form-row';
   row.innerHTML=`<input type="text" class="e-yard" value="${esc(r.yard)}" placeholder="Yard name"><input type="text" class="e-cust" value="${esc(r.cust)}" placeholder="Customer"><input type="text" class="e-model" value="${esc(r.model)}" placeholder="Model"><input type="number" class="e-n" value="${r.n}" min="0"><button type="button" class="danger e-del">Delete</button>`;
   row.querySelector('.e-del').onclick=()=>row.remove();
@@ -318,11 +316,9 @@ $('#dl').onclick=downloadPdfReport;
 $('#clear').onclick=()=>{sel={yard:new Set,cust:new Set,model:new Set};render()};
 $('#reset').onclick=()=>load(SAMPLE,'Sample data');
 $('#theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);r.dataset.theme=d?'light':'dark';render()};
-$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>{try{const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});const r=parseWB(wb);r?load(r,f.name):msg('Could not find Customer / Model / Count columns.')}catch(x){msg('Could not read this file: '+x.message)}};rd.readAsArrayBuffer(f);e.target.value=''};
 
 fetchCloudInventory();
 setInterval(fetchCloudInventory, 10000);
 </script>
 </body>
 </html>
-
