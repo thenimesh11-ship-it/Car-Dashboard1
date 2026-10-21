@@ -283,4 +283,46 @@ function downloadPdfReport(){
   const tableOpt={
    theme:'grid',
    headStyles:{fillColor:ACC,textColor:255,fontStyle:'bold',fontSize:9.5,cellPadding:6},
-   styles:{fontSize:8.5,cellPadding:5.5,lin
+   styles:{fontSize:8.5,cellPadding:5.5,lineColor:LN,lineWidth:0.5,textColor:[30,41,59]},
+   margin:{left:40,right:40,bottom:50}
+  };
+
+  doc.autoTable({...tableOpt, startY:182, head:[['Yard name','Customer','Model',R('Cars (Qty)')]], body:b1});
+
+  let nextY=doc.lastAutoTable.finalY+26;
+  if(nextY>700){doc.addPage();nextY=50;}
+
+  doc.setTextColor(...NAVY);doc.setFont('helvetica','bold');doc.setFontSize(12);
+  doc.text('2. Yard Storage Summary',40,nextY);
+
+  const b2=yd.map(([n,v])=>[n,R(v)]);
+  b2.push(TT('TOTAL CARS (ALL YARDS)',g,1,NAVY,255));
+
+  doc.autoTable({...tableOpt, startY:nextY+10, head:[['Yard/Location',R('Total Cars')]], body:b2});
+
+  const totalPages=doc.getNumberOfPages();
+  for(let i=1;i<=totalPages;i++){
+   doc.setPage(i);
+   const h=doc.internal.pageSize.getHeight();
+   doc.setDrawColor(...LN);doc.line(40,h-36,W-40,h-36);
+   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...MUTED);
+   doc.text('Car Inventory Management System  |  Confidential Report',40,h-20);
+   doc.text('Page '+i+' of '+totalPages,W-40,h-20,{align:'right'});
+  }
+
+  doc.save('Car_Inventory_Report_Professional.pdf');
+ }catch(err){console.error(err);msg('Failed to generate PDF: '+err.message);}
+}
+
+$('#dl').onclick=downloadPdfReport;
+$('#clear').onclick=()=>{sel={yard:new Set,cust:new Set,model:new Set};render()};
+$('#reset').onclick=()=>load(SAMPLE,'Sample data');
+$('#theme').onclick=()=>{const r=document.documentElement,d=r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);r.dataset.theme=d?'light':'dark';render()};
+$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>{try{const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});const r=parseWB(wb);r?load(r,f.name):msg('Could not find Customer / Model / Count columns.')}catch(x){msg('Could not read this file: '+x.message)}};rd.readAsArrayBuffer(f);e.target.value=''};
+
+fetchCloudInventory();
+setInterval(fetchCloudInventory, 10000);
+</script>
+</body>
+</html>
+
