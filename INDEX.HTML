@@ -1,0 +1,32 @@
+function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Inventory");
+  var data = sheet.getDataRange().getValues();
+  var rows = data.slice(1); // Exclude headers
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: "success", data: rows }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var contents = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Inventory");
+    
+    // Clear existing data (keep headers)
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.getRange(2, 1, lastRow - 1, 4).clearContent();
+    }
+    
+    // Write new data rows
+    if (contents.data && contents.data.length > 0) {
+      sheet.getRange(2, 1, contents.data.length, 4).setValues(contents.data);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
